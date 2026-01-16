@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Play, DollarSign, Users, Trophy, Clock, CheckCircle, XCircle, Settings, Mail } from 'lucide-react';
 
 export default function App() {
@@ -19,6 +19,8 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(null);
   const [gameHistory, setGameHistory] = useState([]);
   const [multiplayerLobby, setMultiplayerLobby] = useState([]);
+  const [userExitedManually, setUserExitedManually] = useState(false);
+  const multiplayerRestartTimeoutRef = useRef(null);
 
   const formatBalance = (balance) => {
     return balance.toFixed(2);
@@ -41,7 +43,7 @@ export default function App() {
   }, [timeLeft]);
 
   useEffect(() => {
-    if (currentView === 'multiplayer' && gameState?.mode === 'multiplayer' && multiplayerLobby.length === 0) {
+    if (currentView === 'multiplayer' && gameState?.mode === 'multiplayer' && multiplayerLobby.length === 0 && !gameState.botsLoaded) {
       const botNames = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Ivy', 'Jack'];
       const numberOfBots = Math.floor(Math.random() * 7) + 4;
       
@@ -57,10 +59,12 @@ export default function App() {
         
         initialBots.push({
           name,
-          amount: Math.floor(Math.random() * 150) + 20,
+          amount: Math.floor(Math.random() * 350) + 20,
           prediction: Math.random() > 0.5 ? 'MADE' : 'MISSED'
         });
       }
+      
+      setGameState(prev => prev ? { ...prev, botsLoaded: true } : prev);
       
       initialBots.forEach((bot, index) => {
         const delay = Math.random() * 3000 + (index * 500);
@@ -73,7 +77,15 @@ export default function App() {
         }, delay);
       });
     }
-  }, [currentView, gameState?.mode]);
+  }, [currentView, gameState?.mode, multiplayerLobby.length, gameState?.botsLoaded]);
+
+  useEffect(() => {
+    return () => {
+      if (multiplayerRestartTimeoutRef.current) {
+        clearTimeout(multiplayerRestartTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const startSoloGame = () => {
     const video = DEMO_VIDEOS[Math.floor(Math.random() * DEMO_VIDEOS.length)];
@@ -95,11 +107,13 @@ export default function App() {
       video,
       status: 'betting',
       betPlaced: false,
-      totalPot: 0
+      totalPot: 0,
+      botsLoaded: false
     });
     setTimeLeft(20);
     setPrediction(null);
     setMultiplayerLobby([]);
+    setUserExitedManually(false);
     setCurrentView('multiplayer');
   };
 
@@ -143,6 +157,14 @@ export default function App() {
           won: null,
           payout: 0
         }));
+        
+        if (gameState.mode === 'multiplayer' && !userExitedManually) {
+          multiplayerRestartTimeoutRef.current = setTimeout(() => {
+            if (currentView === 'multiplayer' && !userExitedManually) {
+              startMultiplayerGame();
+            }
+          }, 5000);
+        }
         return;
       }
       
@@ -174,8 +196,8 @@ export default function App() {
         payout
       }));
 
-      if (gameState.betPlaced) {
-        setGameHistory(prev => [{
+      setGameHistory(prev => {
+        const newEntry = {
           mode: gameState.mode,
           bet: betAmount,
           prediction,
@@ -183,12 +205,24 @@ export default function App() {
           won,
           payout,
           timestamp: new Date()
-        }, ...prev].slice(0, 10));
-      }
+        };
+        
+        const isDuplicate = prev.some(entry => 
+          entry.timestamp.getTime() === newEntry.timestamp.getTime() &&
+          entry.bet === newEntry.bet &&
+          entry.prediction === newEntry.prediction
+        );
+        
+        if (isDuplicate) return prev;
+        
+        return [newEntry, ...prev].slice(0, 10);
+      });
 
-      if (gameState.mode === 'multiplayer') {
-        setTimeout(() => {
-          startMultiplayerGame();
+      if (gameState.mode === 'multiplayer' && !userExitedManually) {
+        multiplayerRestartTimeoutRef.current = setTimeout(() => {
+          if (currentView === 'multiplayer' && !userExitedManually) {
+            startMultiplayerGame();
+          }
         }, 5000);
       }
     }, 2000);
@@ -207,6 +241,10 @@ export default function App() {
   };
 
   const resetGame = () => {
+    setUserExitedManually(true);
+    if (multiplayerRestartTimeoutRef.current) {
+      clearTimeout(multiplayerRestartTimeoutRef.current);
+    }
     setGameState(null);
     setCurrentView('home');
     setPrediction(null);
@@ -230,28 +268,60 @@ export default function App() {
     return potentialWin;
   };
 
+  const NavBar = ({ showExit = false }) => (
+    <nav className="bg-black/30 backdrop-blur-md border-b border-white/10">
+      <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="flex items-center justify-between">
+          {showExit ? (
+            <button 
+              onClick={resetGame}
+              className="text-white/80 hover:text-white transition"
+            >
+              ← Exit
+            </button>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-pink-500 rounded-full flex items-center justify-center">
+                <Trophy className="text-white" size={20} />
+              </div>
+              <span className="text-2xl font-bold text-white">HoopShot</span>
+            </div>
+          )}
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
+              <DollarSign size={18} className="text-green-400" />
+              <span className="text-white font-semibold">${formatBalance(user.balance)}</span>
+            </div>
+            <button
+              onClick={() => {
+                setUserExitedManually(true);
+                if (multiplayerRestartTimeoutRef.current) {
+                  clearTimeout(multiplayerRestartTimeoutRef.current);
+                }
+                setCurrentView('profile');
+              }}
+              className="flex items-center gap-2 hover:opacity-80 transition"
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center text-white font-bold">
+                {user.name.charAt(0)}
+              </div>
+              <span className="text-white text-sm">{user.name}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+
   if (currentView === 'profile') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-        <nav className="bg-black/30 backdrop-blur-md border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <button 
-                onClick={() => setCurrentView('home')}
-                className="text-white/80 hover:text-white transition"
-              >
-                ← Back
-              </button>
-              <span className="text-2xl font-bold text-white">Profile</span>
-              <div className="w-20" />
-            </div>
-          </div>
-        </nav>
+        <NavBar showExit={true}/>
 
         <div className="max-w-4xl mx-auto px-6 py-12">
           <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8 mb-8">
             <div className="flex items-center gap-6 mb-8">
-              <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center text-4xl text-white">
+              <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center text-4xl text-white font-bold">
                 {user.name.charAt(0)}
               </div>
               <div>
@@ -354,31 +424,7 @@ export default function App() {
   if (currentView === 'home') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-        <nav className="bg-black/30 backdrop-blur-md border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-pink-500 rounded-full flex items-center justify-center">
-                  <Trophy className="text-white" size={20} />
-                </div>
-                <span className="text-2xl font-bold text-white">HoopShot</span>
-              </div>
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
-                  <DollarSign size={18} className="text-green-400" />
-                  <span className="text-white font-semibold">${formatBalance(user.balance)}</span>
-                </div>
-                <button
-                  onClick={() => setCurrentView('profile')}
-                  className="flex items-center gap-2 hover:opacity-80 transition"
-                >
-                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full" />
-                  <span className="text-white text-sm">{user.name}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </nav>
+        <NavBar />
 
         <div className="max-w-7xl mx-auto px-6 py-20">
           <div className="text-center mb-16">
@@ -488,25 +534,12 @@ export default function App() {
   if (currentView === 'game' && gameState?.mode === 'solo') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-        <nav className="bg-black/30 backdrop-blur-md border-b border-white/10">
-          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <button 
-              onClick={resetGame}
-              className="text-white/80 hover:text-white transition"
-            >
-              ← Exit
-            </button>
-            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
-              <DollarSign size={18} className="text-green-400" />
-              <span className="text-white font-semibold">${formatBalance(user.balance)}</span>
-            </div>
-          </div>
-        </nav>
+        <NavBar showExit={true} />
 
         <div className="max-w-4xl mx-auto px-6 py-12">
           <div className="relative bg-black rounded-3xl overflow-hidden mb-8 shadow-2xl">
             <div className="aspect-video bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
-              {gameState.status === 'revealing' || gameState.status === 'completed' ? (
+              {gameState.status === 'completed' ? (
                 <div className="text-center">
                   <div className={`w-32 h-32 rounded-full mx-auto mb-6 flex items-center justify-center ${
                     gameState.outcome === 'MADE' ? 'bg-green-500/20' : 'bg-red-500/20'
@@ -518,19 +551,21 @@ export default function App() {
                   <div className="text-4xl font-bold text-white mb-2">
                     Shot {gameState.outcome === 'MADE' ? 'Made!' : 'Missed!'}
                   </div>
-                  {gameState.status === 'completed' && (
-                    <>
-                      {gameState.won === null ? (
-                        <div className="text-xl text-white/60">
-                          No bet placed - Just watching! 👀
-                        </div>
-                      ) : (
-                        <div className={`text-2xl font-semibold ${gameState.won ? 'text-green-400' : 'text-red-400'}`}>
-                          {gameState.won ? `You Won $${formatBalance(gameState.payout)}! 🎉` : `You Lost $${formatBalance(betAmount)} 😞`}
-                        </div>
-                      )}
-                    </>
+                  {gameState.won === null ? (
+                    <div className="text-xl text-white/60">
+                      No bet placed - Just watching! 👀
+                    </div>
+                  ) : (
+                    <div className={`text-2xl font-semibold ${gameState.won ? 'text-green-400' : 'text-red-400'}`}>
+                      {gameState.won ? `You Won $${formatBalance(gameState.payout)}! 🎉` : `You Lost $${formatBalance(betAmount)} 😞`}
+                    </div>
                   )}
+                </div>
+              ) : gameState.status === 'revealing' ? (
+                <div className="text-center">
+                  <div className="w-24 h-24 border-8 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-6" />
+                  <div className="text-white text-2xl font-semibold">Ball is in the air...</div>
+                  <div className="text-white/60 mt-2">🏀 Revealing result...</div>
                 </div>
               ) : (
                 <div className="text-center">
@@ -549,6 +584,71 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {!gameState.betPlaced && gameState.status === 'betting' && (
+            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8">
+              <h2 className="text-3xl font-bold text-white mb-6 text-center">
+                Make Your Prediction
+              </h2>
+              
+              <div className="mb-6">
+                <label className="block text-white/80 mb-3 text-lg">Bet Amount</label>
+                <input
+                  type="range"
+                  min="10"
+                  max={Math.min(500, user.balance)}
+                  value={betAmount}
+                  onChange={(e) => setBetAmount(Number(e.target.value))}
+                  className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                />
+                <div className="flex justify-between items-center mt-2">
+                  <span className="text-white/60">$10</span>
+                  <span className="text-3xl font-bold text-white">${betAmount}</span>
+                  <span className="text-white/60">${Math.min(500, user.balance)}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <button
+                  onClick={() => setPrediction('MADE')}
+                  className={`p-6 rounded-2xl border-2 transition-all ${
+                    prediction === 'MADE'
+                      ? 'bg-green-500/30 border-green-400 scale-105'
+                      : 'bg-white/5 border-white/20 hover:border-green-400/50'
+                  }`}
+                >
+                  <div className="text-5xl mb-3">🏀</div>
+                  <div className="text-xl font-bold text-white">Shot Goes In</div>
+                  <div className="text-white/60 mt-1">Win 2x</div>
+                </button>
+
+                <button
+                  onClick={() => setPrediction('MISSED')}
+                  className={`p-6 rounded-2xl border-2 transition-all ${
+                    prediction === 'MISSED'
+                      ? 'bg-red-500/30 border-red-400 scale-105'
+                      : 'bg-white/5 border-white/20 hover:border-red-400/50'
+                  }`}
+                >
+                  <div className="text-5xl mb-3">❌</div>
+                  <div className="text-xl font-bold text-white">Shot Misses</div>
+                  <div className="text-white/60 mt-1">Win 2x</div>
+                </button>
+              </div>
+
+              <button
+                onClick={placeBet}
+                disabled={!prediction}
+                className={`w-full py-5 rounded-2xl font-bold text-xl transition-all ${
+                  prediction
+                    ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/50'
+                    : 'bg-white/10 text-white/40 cursor-not-allowed'
+                }`}
+              >
+                Place Bet - ${betAmount}
+              </button>
+            </div>
+          )}
 
           {!gameState.betPlaced && gameState.status === 'betting' && (
             <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8">
