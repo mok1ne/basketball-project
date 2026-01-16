@@ -1,20 +1,34 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Play, DollarSign, Users, Trophy, Clock, CheckCircle, XCircle, Settings, Mail } from 'lucide-react';
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Play,
+  DollarSign,
+  Users,
+  Trophy,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Settings,
+  Mail,
+} from "lucide-react";
 
 export default function App() {
   const DEMO_VIDEOS = [
-    { id: 1, outcome: 'MADE' },
-    { id: 2, outcome: 'MISSED' },
-    { id: 3, outcome: 'MADE' },
-    { id: 4, outcome: 'MISSED' },
+    { id: 1, outcome: "MADE" },
+    { id: 2, outcome: "MISSED" },
+    { id: 3, outcome: "MADE" },
+    { id: 4, outcome: "MISSED" },
   ];
 
-  const [currentView, setCurrentView] = useState('home');
-  const [user, setUser] = useState({ name: 'Demo Player', email: 'demo@hoopshot.com', balance: 1000 });
+  const [currentView, setCurrentView] = useState("home");
+  const [user, setUser] = useState({
+    name: "Demo Player",
+    email: "demo@hoopshot.com",
+    balance: 1000,
+  });
   const [gameState, setGameState] = useState(null);
-  const [betAmount, setBetAmount] = useState(50);
+  const [betAmount, setBetAmount] = useState(10);
   const [prediction, setPrediction] = useState(null);
   const [timeLeft, setTimeLeft] = useState(null);
   const [gameHistory, setGameHistory] = useState([]);
@@ -28,56 +42,85 @@ export default function App() {
 
   useEffect(() => {
     if (timeLeft === null || timeLeft <= 0) return;
-    
+    if (gameState?.status !== "betting") return;
+
     const timer = setInterval(() => {
-      setTimeLeft(prev => {
+      setTimeLeft((prev) => {
+        if (prev === null) return null;
         if (prev <= 1) {
+          // остановим интервал и вызовем revealOutcome единожды
+          clearInterval(timer);
           revealOutcome();
           return null;
         }
         return prev - 1;
       });
     }, 1000);
-    
+
     return () => clearInterval(timer);
-  }, [timeLeft]);
+  }, [timeLeft, gameState?.status]);
 
   useEffect(() => {
-    if (currentView === 'multiplayer' && gameState?.mode === 'multiplayer' && multiplayerLobby.length === 0 && !gameState.botsLoaded) {
-      const botNames = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Ivy', 'Jack'];
+    if (
+      currentView === "multiplayer" &&
+      gameState?.mode === "multiplayer" &&
+      multiplayerLobby.length === 0 &&
+      !gameState.botsLoaded
+    ) {
+      const botNames = [
+        "Alice",
+        "Bob",
+        "Charlie",
+        "Diana",
+        "Eve",
+        "Frank",
+        "Grace",
+        "Henry",
+        "Ivy",
+        "Jack",
+      ];
       const numberOfBots = Math.floor(Math.random() * 7) + 4;
-      
+
       const initialBots = [];
       const usedNames = new Set();
-      
+
       for (let i = 0; i < numberOfBots; i++) {
         let name;
         do {
           name = botNames[Math.floor(Math.random() * botNames.length)];
         } while (usedNames.has(name));
         usedNames.add(name);
-        
+
         initialBots.push({
           name,
           amount: Math.floor(Math.random() * 350) + 20,
-          prediction: Math.random() > 0.5 ? 'MADE' : 'MISSED'
+          prediction: Math.random() > 0.5 ? "MADE" : "MISSED",
         });
       }
-      
-      setGameState(prev => prev ? { ...prev, botsLoaded: true } : prev);
-      
+
+      setGameState((prev) => (prev ? { ...prev, botsLoaded: true } : prev));
+
       initialBots.forEach((bot, index) => {
-        const delay = Math.random() * 3000 + (index * 500);
+        const delay = Math.random() * 3000 + index * 500;
         setTimeout(() => {
-          setMultiplayerLobby(prev => [...prev, bot]);
-          setGameState(prev => prev ? {
-            ...prev,
-            totalPot: prev.totalPot + bot.amount
-          } : prev);
+          setMultiplayerLobby((prev) => [...prev, bot]);
+          setGameState((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  totalPot: prev.totalPot + bot.amount,
+                }
+              : prev
+          );
         }, delay);
       });
     }
-  }, [currentView, gameState?.mode, multiplayerLobby.length, gameState?.botsLoaded]);
+  }, [
+    currentView,
+    gameState?.mode,
+    multiplayerLobby.length,
+    gameState?.botsLoaded,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -89,152 +132,182 @@ export default function App() {
 
   const startSoloGame = () => {
     const video = DEMO_VIDEOS[Math.floor(Math.random() * DEMO_VIDEOS.length)];
+    revealCalledRef.current = false; // сброс защитного флага
     setGameState({
-      mode: 'solo',
+      mode: "solo",
       video,
-      status: 'betting',
-      betPlaced: false
+      status: "betting",
+      betPlaced: false,
+      payoutProcessed: false,
+      botsLoaded: false,
+      totalPot: 0,
     });
     setTimeLeft(15);
     setPrediction(null);
-    setCurrentView('game');
+    setCurrentView("game");
   };
 
   const startMultiplayerGame = () => {
     const video = DEMO_VIDEOS[Math.floor(Math.random() * DEMO_VIDEOS.length)];
     setGameState({
-      mode: 'multiplayer',
+      mode: "multiplayer",
       video,
-      status: 'betting',
+      status: "betting",
       betPlaced: false,
       totalPot: 0,
-      botsLoaded: false
+      botsLoaded: false,
     });
     setTimeLeft(20);
     setPrediction(null);
     setMultiplayerLobby([]);
     setUserExitedManually(false);
-    setCurrentView('multiplayer');
+    setCurrentView("multiplayer");
   };
 
   const placeBet = () => {
     if (!prediction || betAmount <= 0) return;
-    
-    setUser(prev => ({ ...prev, balance: prev.balance - betAmount }));
-    setGameState(prev => ({
+
+    setUser((prev) => ({ ...prev, balance: prev.balance - betAmount }));
+
+    setGameState((prev) => ({
       ...prev,
       betPlaced: true,
-      userBet: { amount: betAmount, prediction }
+      userBet: { amount: betAmount, prediction },
+      payoutProcessed: false,
     }));
 
-    if (gameState.mode === 'multiplayer') {
-      setMultiplayerLobby(prev => [...prev, {
-        name: user.name,
-        amount: betAmount,
-        prediction,
-        isUser: true
-      }]);
-      setGameState(prev => ({
+    if (gameState?.mode === "multiplayer") {
+      setMultiplayerLobby((prev) => [
         ...prev,
-        totalPot: prev.totalPot + betAmount
+        {
+          name: user.name,
+          amount: betAmount,
+          prediction,
+          isUser: true,
+        },
+      ]);
+      setGameState((prev) => ({
+        ...prev,
+        totalPot: (prev?.totalPot || 0) + betAmount,
       }));
     }
   };
 
   const revealOutcome = () => {
-    if (!gameState) return;
-    
-    setGameState(prev => ({ ...prev, status: 'revealing' }));
-    
+    // если уже запущено или не в режиме "betting" — игнорируем
+    if (revealCalledRef.current) return;
+    const gs = gameStateRef.current;
+    if (!gs || gs.status !== "betting") return;
+
+    // ставим флаг что reveal начался (защита от повторного вызова)
+    revealCalledRef.current = true;
+
+    // немедленно переведём статус в "revealing"
+    setGameState((prev) => ({ ...prev, status: "revealing" }));
+
+    // Сохраним локальные данные (снимок) для вычислений после таймаута
+    const localOutcome =
+      gs.video?.outcome ??
+      DEMO_VIDEOS[Math.floor(Math.random() * DEMO_VIDEOS.length)].outcome;
+    const localBetPlaced = gs.betPlaced;
+    const localMode = gs.mode;
+    const localBetAmount = betAmount; // берём текущую ставку из state
+    const localPrediction = prediction;
+
     setTimeout(() => {
-      const outcome = gameState.video.outcome;
-      
-      if (!gameState.betPlaced) {
-        setGameState(prev => ({
+      try {
+        // если ставки не было — просто завершаем
+        if (!localBetPlaced) {
+          setGameState((prev) => ({
+            ...prev,
+            status: "completed",
+            outcome: localOutcome,
+            won: null,
+            payout: 0,
+            payoutProcessed: true,
+          }));
+          revealCalledRef.current = false;
+          return;
+        }
+
+        const won = localPrediction === localOutcome;
+        let payout = 0;
+
+        if (localMode === "solo" && won) {
+          // ставка уже списана в placeBet -> выплачиваем полную сумму (ставка + выигрыш) = 2 * ставка
+          payout = localBetAmount * 2;
+        } else if (localMode === "multiplayer") {
+          const lobby = multiplayerLobby.slice(); // локальная копия
+          const totalPot = lobby.reduce((s, p) => s + Number(p.amount), 0);
+          const winners = lobby.filter((p) => p.prediction === localOutcome);
+          const winnerBets = winners.reduce((s, p) => s + Number(p.amount), 0);
+
+          if (winnerBets > 0 && won) {
+            const commission = totalPot * 0.1;
+            const netPot = totalPot - commission;
+            // правильная пропорция — доля от netPot
+            payout = (localBetAmount / winnerBets) * netPot;
+          } else {
+            payout = 0;
+          }
+        }
+
+        // Выплата — ДЕЙСТВУЕТ ОДНОРАЗОВО
+        if (payout > 0) {
+          setUser((prev) => ({
+            ...prev,
+            balance: Number(prev.balance) + Number(payout),
+          }));
+        }
+
+        // Обновляем gameState итоговыми данными (и помечаем, что выплата обработана)
+        setGameState((prev) => ({
           ...prev,
-          status: 'completed',
-          outcome,
-          won: null,
-          payout: 0
-        }));
-        
-        if (gameState.mode === 'multiplayer' && !userExitedManually) {
-          multiplayerRestartTimeoutRef.current = setTimeout(() => {
-            if (currentView === 'multiplayer' && !userExitedManually) {
-              startMultiplayerGame();
-            }
-          }, 5000);
-        }
-        return;
-      }
-      
-      const won = prediction === outcome;
-      
-      let payout = 0;
-      if (gameState.mode === 'solo' && won) {
-        payout = betAmount * 2;
-        setUser(prev => ({ ...prev, balance: prev.balance + payout }));
-      } else if (gameState.mode === 'multiplayer') {
-        const totalPot = multiplayerLobby.reduce((sum, p) => sum + p.amount, 0);
-        const winners = multiplayerLobby.filter(p => p.prediction === outcome);
-        const winnerBets = winners.reduce((sum, p) => sum + p.amount, 0);
-        
-        if (won && winnerBets > 0) {
-          const commission = totalPot * 0.1;
-          const netPot = totalPot - commission;
-          const userShare = betAmount / winnerBets;
-          payout = betAmount + (netPot - winnerBets) * userShare;
-          setUser(prev => ({ ...prev, balance: prev.balance + payout }));
-        }
-      }
-
-      setGameState(prev => ({
-        ...prev,
-        status: 'completed',
-        outcome,
-        won,
-        payout
-      }));
-
-      setGameHistory(prev => {
-        const newEntry = {
-          mode: gameState.mode,
-          bet: betAmount,
-          prediction,
-          outcome,
+          status: "completed",
+          outcome: localOutcome,
           won,
           payout,
-          timestamp: new Date()
-        };
-        
-        const isDuplicate = prev.some(entry => 
-          entry.timestamp.getTime() === newEntry.timestamp.getTime() &&
-          entry.bet === newEntry.bet &&
-          entry.prediction === newEntry.prediction
-        );
-        
-        if (isDuplicate) return prev;
-        
-        return [newEntry, ...prev].slice(0, 10);
-      });
+          payoutProcessed: true,
+          betPlaced: false,
+        }));
 
-      if (gameState.mode === 'multiplayer' && !userExitedManually) {
-        multiplayerRestartTimeoutRef.current = setTimeout(() => {
-          if (currentView === 'multiplayer' && !userExitedManually) {
-            startMultiplayerGame();
-          }
-        }, 5000);
+        // Добавляем в историю (в
+        setGameHistory((prev) => {
+          const newEntry = {
+            mode: localMode,
+            bet: localBetAmount,
+            prediction: localPrediction,
+            outcome: localOutcome,
+            won,
+            payout,
+            timestamp: new Date(),
+          };
+          const isDuplicate = prev.some(
+            (entry) =>
+              entry.timestamp.getTime() === newEntry.timestamp.getTime() &&
+              entry.bet === newEntry.bet &&
+              entry.prediction === newEntry.prediction
+          );
+          if (isDuplicate) return prev;
+          return [newEntry, ...prev].slice(0, 10);
+        });
+      } finally {
+        // позволим reveal вызываться снова для следующих раундов после рестарта
+        revealCalledRef.current = false;
       }
     }, 2000);
   };
 
   const restartSoloGame = () => {
     const video = DEMO_VIDEOS[Math.floor(Math.random() * DEMO_VIDEOS.length)];
+    revealCalledRef.current = false;
     setGameState({
-      mode: 'solo',
+      mode: "solo",
       video,
-      status: 'betting',
-      betPlaced: false
+      status: "betting",
+      betPlaced: false,
+      payoutProcessed: false,
+      totalPot: 0,
     });
     setTimeLeft(15);
     setPrediction(null);
@@ -246,34 +319,41 @@ export default function App() {
       clearTimeout(multiplayerRestartTimeoutRef.current);
     }
     setGameState(null);
-    setCurrentView('home');
+    setCurrentView("home");
     setPrediction(null);
     setTimeLeft(null);
   };
 
   const calculatePotentialWin = (playerBet, playerPrediction) => {
     if (!multiplayerLobby.length) return 0;
-    
+
     const totalPot = multiplayerLobby.reduce((sum, p) => sum + p.amount, 0);
-    const samePrediction = multiplayerLobby.filter(p => p.prediction === playerPrediction);
+    const samePrediction = multiplayerLobby.filter(
+      (p) => p.prediction === playerPrediction
+    );
     const winnerBets = samePrediction.reduce((sum, p) => sum + p.amount, 0);
-    
+
     if (winnerBets === 0) return 0;
-    
+
     const commission = totalPot * 0.1;
     const netPot = totalPot - commission;
-    const userShare = playerBet / winnerBets;
-    const potentialWin = playerBet + (netPot - winnerBets) * userShare;
-    
-    return potentialWin;
+
+    return (playerBet / winnerBets) * netPot;
   };
+
+  const revealCalledRef = useRef(false); // защитит от двойного reveal
+  const gameStateRef = useRef(gameState); // всегда содержит актуальную версию gameState
+
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
 
   const NavBar = ({ showExit = false }) => (
     <nav className="bg-black/30 backdrop-blur-md border-b border-white/10">
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           {showExit ? (
-            <button 
+            <button
               onClick={resetGame}
               className="text-white/80 hover:text-white transition"
             >
@@ -290,7 +370,9 @@ export default function App() {
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
               <DollarSign size={18} className="text-green-400" />
-              <span className="text-white font-semibold">${formatBalance(user.balance)}</span>
+              <span className="text-white font-semibold">
+                ${formatBalance(user.balance)}
+              </span>
             </div>
             <button
               onClick={() => {
@@ -298,7 +380,7 @@ export default function App() {
                 if (multiplayerRestartTimeoutRef.current) {
                   clearTimeout(multiplayerRestartTimeoutRef.current);
                 }
-                setCurrentView('profile');
+                setCurrentView("profile");
               }}
               className="flex items-center gap-2 hover:opacity-80 transition"
             >
@@ -313,10 +395,10 @@ export default function App() {
     </nav>
   );
 
-  if (currentView === 'profile') {
+  if (currentView === "profile") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-        <NavBar showExit={true}/>
+        <NavBar showExit={true} />
 
         <div className="max-w-4xl mx-auto px-6 py-12">
           <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8 mb-8">
@@ -325,7 +407,9 @@ export default function App() {
                 {user.name.charAt(0)}
               </div>
               <div>
-                <h2 className="text-3xl font-bold text-white mb-2">{user.name}</h2>
+                <h2 className="text-3xl font-bold text-white mb-2">
+                  {user.name}
+                </h2>
                 <div className="flex items-center gap-2 text-white/60">
                   <Mail size={16} />
                   <span>{user.email}</span>
@@ -355,11 +439,15 @@ export default function App() {
               </h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-white/60 mb-2">Display Name</label>
+                  <label className="block text-white/60 mb-2">
+                    Display Name
+                  </label>
                   <input
                     type="text"
                     value={user.name}
-                    onChange={(e) => setUser(prev => ({ ...prev, name: e.target.value }))}
+                    onChange={(e) =>
+                      setUser((prev) => ({ ...prev, name: e.target.value }))
+                    }
                     className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-400"
                   />
                 </div>
@@ -368,7 +456,9 @@ export default function App() {
                   <input
                     type="email"
                     value={user.email}
-                    onChange={(e) => setUser(prev => ({ ...prev, email: e.target.value }))}
+                    onChange={(e) =>
+                      setUser((prev) => ({ ...prev, email: e.target.value }))
+                    }
                     className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-400"
                   />
                 </div>
@@ -378,7 +468,7 @@ export default function App() {
 
           <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8">
             <h3 className="text-2xl font-bold text-white mb-6">Game History</h3>
-            
+
             {gameHistory.length === 0 ? (
               <div className="text-center py-12">
                 <Trophy size={48} className="text-white/30 mx-auto mb-4" />
@@ -390,21 +480,35 @@ export default function App() {
                   <div key={idx} className="bg-white/5 rounded-xl p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          game.won ? 'bg-green-500/20' : 'bg-red-500/20'
-                        }`}>
-                          {game.won ? <CheckCircle size={20} className="text-green-400" /> : <XCircle size={20} className="text-red-400" />}
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            game.won ? "bg-green-500/20" : "bg-red-500/20"
+                          }`}
+                        >
+                          {game.won ? (
+                            <CheckCircle size={20} className="text-green-400" />
+                          ) : (
+                            <XCircle size={20} className="text-red-400" />
+                          )}
                         </div>
                         <div>
-                          <div className="text-white font-semibold capitalize">{game.mode} Mode</div>
+                          <div className="text-white font-semibold capitalize">
+                            {game.mode} Mode
+                          </div>
                           <div className="text-white/60 text-sm">
                             {game.timestamp.toLocaleString()}
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className={`text-xl font-bold ${game.won ? 'text-green-400' : 'text-red-400'}`}>
-                          {game.won ? `+$${formatBalance(game.payout)}` : `-$${formatBalance(game.bet)}`}
+                        <div
+                          className={`text-xl font-bold ${
+                            game.won ? "text-green-400" : "text-red-400"
+                          }`}
+                        >
+                          {game.won
+                            ? `+$${formatBalance(game.payout)}`
+                            : `-$${formatBalance(game.bet)}`}
                         </div>
                         <div className="text-white/60 text-sm">
                           {game.prediction} → {game.outcome}
@@ -421,7 +525,7 @@ export default function App() {
     );
   }
 
-  if (currentView === 'home') {
+  if (currentView === "home") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
         <NavBar />
@@ -431,12 +535,11 @@ export default function App() {
             <h1 className="text-7xl font-bold text-white mb-6">
               Will It Go In? 🏀
             </h1>
-            <p className="text-2xl text-white/70 mb-4">
-              Watch. Predict. Win.
-            </p>
+            <p className="text-2xl text-white/70 mb-4">Watch. Predict. Win.</p>
             <p className="text-lg text-white/50 max-w-2xl mx-auto">
-              AI-generated basketball shots. Make your prediction before the reveal. 
-              Double your money in Solo or compete with others in Multiplayer!
+              AI-generated basketball shots. Make your prediction before the
+              reveal. Double your money in Solo or compete with others in
+              Multiplayer!
             </p>
           </div>
 
@@ -468,7 +571,7 @@ export default function App() {
                   15 seconds to decide
                 </li>
               </ul>
-              <button 
+              <button
                 onClick={startSoloGame}
                 className="w-full bg-gradient-to-r from-orange-500 to-pink-500 text-white py-4 rounded-xl font-bold text-lg hover:shadow-lg hover:shadow-orange-500/50 transition-all"
               >
@@ -503,7 +606,7 @@ export default function App() {
                   20 seconds betting time
                 </li>
               </ul>
-              <button 
+              <button
                 onClick={startMultiplayerGame}
                 className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white py-4 rounded-xl font-bold text-lg hover:shadow-lg hover:shadow-blue-500/50 transition-all"
               >
@@ -531,7 +634,7 @@ export default function App() {
     );
   }
 
-  if (currentView === 'game' && gameState?.mode === 'solo') {
+  if (currentView === "game" && gameState?.mode === "solo") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
         <NavBar showExit={true} />
@@ -539,39 +642,57 @@ export default function App() {
         <div className="max-w-4xl mx-auto px-6 py-12">
           <div className="relative bg-black rounded-3xl overflow-hidden mb-8 shadow-2xl">
             <div className="aspect-video bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
-              {gameState.status === 'completed' ? (
+              {gameState.status === "completed" ? (
                 <div className="text-center">
-                  <div className={`w-32 h-32 rounded-full mx-auto mb-6 flex items-center justify-center ${
-                    gameState.outcome === 'MADE' ? 'bg-green-500/20' : 'bg-red-500/20'
-                  }`}>
+                  <div
+                    className={`w-32 h-32 rounded-full mx-auto mb-6 flex items-center justify-center ${
+                      gameState.outcome === "MADE"
+                        ? "bg-green-500/20"
+                        : "bg-red-500/20"
+                    }`}
+                  >
                     <div className="text-6xl">
-                      {gameState.outcome === 'MADE' ? '✓' : '✗'}
+                      {gameState.outcome === "MADE" ? "✓" : "✗"}
                     </div>
                   </div>
                   <div className="text-4xl font-bold text-white mb-2">
-                    Shot {gameState.outcome === 'MADE' ? 'Made!' : 'Missed!'}
+                    Shot {gameState.outcome === "MADE" ? "Made!" : "Missed!"}
                   </div>
                   {gameState.won === null ? (
                     <div className="text-xl text-white/60">
                       No bet placed - Just watching! 👀
                     </div>
                   ) : (
-                    <div className={`text-2xl font-semibold ${gameState.won ? 'text-green-400' : 'text-red-400'}`}>
-                      {gameState.won ? `You Won $${formatBalance(gameState.payout)}! 🎉` : `You Lost $${formatBalance(betAmount)} 😞`}
+                    <div
+                      className={`text-2xl font-semibold ${
+                        gameState.won ? "text-green-400" : "text-red-400"
+                      }`}
+                    >
+                      {gameState.won
+                        ? `You Won $${formatBalance(gameState.payout)}! 🎉`
+                        : `You Lost $${formatBalance(betAmount)} 😞`}
                     </div>
                   )}
                 </div>
-              ) : gameState.status === 'revealing' ? (
+              ) : gameState.status === "revealing" ? (
                 <div className="text-center">
                   <div className="w-24 h-24 border-8 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-6" />
-                  <div className="text-white text-2xl font-semibold">Ball is in the air...</div>
-                  <div className="text-white/60 mt-2">🏀 Revealing result...</div>
+                  <div className="text-white text-2xl font-semibold">
+                    Ball is in the air...
+                  </div>
+                  <div className="text-white/60 mt-2">
+                    🏀 Revealing result...
+                  </div>
                 </div>
               ) : (
                 <div className="text-center">
                   <div className="w-24 h-24 border-8 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-6" />
-                  <div className="text-white text-2xl font-semibold">Loading Shot...</div>
-                  <div className="text-white/60 mt-2">AI generating unique basketball shot</div>
+                  <div className="text-white text-2xl font-semibold">
+                    Loading Shot...
+                  </div>
+                  <div className="text-white/60 mt-2">
+                    AI generating unique basketball shot
+                  </div>
                 </div>
               )}
             </div>
@@ -585,14 +706,16 @@ export default function App() {
             )}
           </div>
 
-          {!gameState.betPlaced && gameState.status === 'betting' && (
+          {!gameState.betPlaced && gameState.status === "betting" && (
             <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8">
               <h2 className="text-3xl font-bold text-white mb-6 text-center">
                 Make Your Prediction
               </h2>
-              
+
               <div className="mb-6">
-                <label className="block text-white/80 mb-3 text-lg">Bet Amount</label>
+                <label className="block text-white/80 mb-3 text-lg">
+                  Bet Amount
+                </label>
                 <input
                   type="range"
                   min="10"
@@ -603,35 +726,43 @@ export default function App() {
                 />
                 <div className="flex justify-between items-center mt-2">
                   <span className="text-white/60">$10</span>
-                  <span className="text-3xl font-bold text-white">${betAmount}</span>
-                  <span className="text-white/60">${Math.min(500, user.balance)}</span>
+                  <span className="text-3xl font-bold text-white">
+                    ${betAmount}
+                  </span>
+                  <span className="text-white/60">
+                    ${Math.min(500, user.balance)}
+                  </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <button
-                  onClick={() => setPrediction('MADE')}
+                  onClick={() => setPrediction("MADE")}
                   className={`p-6 rounded-2xl border-2 transition-all ${
-                    prediction === 'MADE'
-                      ? 'bg-green-500/30 border-green-400 scale-105'
-                      : 'bg-white/5 border-white/20 hover:border-green-400/50'
+                    prediction === "MADE"
+                      ? "bg-green-500/30 border-green-400 scale-105"
+                      : "bg-white/5 border-white/20 hover:border-green-400/50"
                   }`}
                 >
                   <div className="text-5xl mb-3">🏀</div>
-                  <div className="text-xl font-bold text-white">Shot Goes In</div>
+                  <div className="text-xl font-bold text-white">
+                    Shot Goes In
+                  </div>
                   <div className="text-white/60 mt-1">Win 2x</div>
                 </button>
 
                 <button
-                  onClick={() => setPrediction('MISSED')}
+                  onClick={() => setPrediction("MISSED")}
                   className={`p-6 rounded-2xl border-2 transition-all ${
-                    prediction === 'MISSED'
-                      ? 'bg-red-500/30 border-red-400 scale-105'
-                      : 'bg-white/5 border-white/20 hover:border-red-400/50'
+                    prediction === "MISSED"
+                      ? "bg-red-500/30 border-red-400 scale-105"
+                      : "bg-white/5 border-white/20 hover:border-red-400/50"
                   }`}
                 >
                   <div className="text-5xl mb-3">❌</div>
-                  <div className="text-xl font-bold text-white">Shot Misses</div>
+                  <div className="text-xl font-bold text-white">
+                    Shot Misses
+                  </div>
                   <div className="text-white/60 mt-1">Win 2x</div>
                 </button>
               </div>
@@ -641,8 +772,8 @@ export default function App() {
                 disabled={!prediction}
                 className={`w-full py-5 rounded-2xl font-bold text-xl transition-all ${
                   prediction
-                    ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/50'
-                    : 'bg-white/10 text-white/40 cursor-not-allowed'
+                    ? "bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/50"
+                    : "bg-white/10 text-white/40 cursor-not-allowed"
                 }`}
               >
                 Place Bet - ${betAmount}
@@ -650,82 +781,20 @@ export default function App() {
             </div>
           )}
 
-          {!gameState.betPlaced && gameState.status === 'betting' && (
-            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8">
-              <h2 className="text-3xl font-bold text-white mb-6 text-center">
-                Make Your Prediction
-              </h2>
-              
-              <div className="mb-6">
-                <label className="block text-white/80 mb-3 text-lg">Bet Amount</label>
-                <input
-                  type="range"
-                  min="10"
-                  max={Math.min(500, user.balance)}
-                  value={betAmount}
-                  onChange={(e) => setBetAmount(Number(e.target.value))}
-                  className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
-                />
-                <div className="flex justify-between items-center mt-2">
-                  <span className="text-white/60">$10</span>
-                  <span className="text-3xl font-bold text-white">${betAmount}</span>
-                  <span className="text-white/60">${Math.min(500, user.balance)}</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <button
-                  onClick={() => setPrediction('MADE')}
-                  className={`p-6 rounded-2xl border-2 transition-all ${
-                    prediction === 'MADE'
-                      ? 'bg-green-500/30 border-green-400 scale-105'
-                      : 'bg-white/5 border-white/20 hover:border-green-400/50'
-                  }`}
-                >
-                  <div className="text-5xl mb-3">🏀</div>
-                  <div className="text-xl font-bold text-white">Shot Goes In</div>
-                  <div className="text-white/60 mt-1">Win 2x</div>
-                </button>
-
-                <button
-                  onClick={() => setPrediction('MISSED')}
-                  className={`p-6 rounded-2xl border-2 transition-all ${
-                    prediction === 'MISSED'
-                      ? 'bg-red-500/30 border-red-400 scale-105'
-                      : 'bg-white/5 border-white/20 hover:border-red-400/50'
-                  }`}
-                >
-                  <div className="text-5xl mb-3">❌</div>
-                  <div className="text-xl font-bold text-white">Shot Misses</div>
-                  <div className="text-white/60 mt-1">Win 2x</div>
-                </button>
-              </div>
-
-              <button
-                onClick={placeBet}
-                disabled={!prediction}
-                className={`w-full py-5 rounded-2xl font-bold text-xl transition-all ${
-                  prediction
-                    ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/50'
-                    : 'bg-white/10 text-white/40 cursor-not-allowed'
-                }`}
-              >
-                Place Bet - ${betAmount}
-              </button>
-            </div>
-          )}
-
-          {gameState.betPlaced && gameState.status === 'betting' && (
+          {gameState.betPlaced && gameState.status === "betting" && (
             <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8 text-center">
-              <div className="text-white/80 text-lg mb-4">Your bet is placed!</div>
+              <div className="text-white/80 text-lg mb-4">
+                Your bet is placed!
+              </div>
               <div className="text-white text-3xl font-bold mb-2">
-                ${betAmount} on {prediction === 'MADE' ? '🏀 Shot Goes In' : '❌ Shot Misses'}
+                ${betAmount} on{" "}
+                {prediction === "MADE" ? "🏀 Shot Goes In" : "❌ Shot Misses"}
               </div>
               <div className="text-white/60">Waiting for reveal...</div>
             </div>
           )}
 
-          {gameState.status === 'completed' && (
+          {gameState.status === "completed" && (
             <button
               onClick={restartSoloGame}
               className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white py-5 rounded-2xl font-bold text-xl hover:shadow-lg transition-all"
@@ -738,17 +807,23 @@ export default function App() {
     );
   }
 
-  if (currentView === 'multiplayer' && gameState?.mode === 'multiplayer') {
+  if (currentView === "multiplayer" && gameState?.mode === "multiplayer") {
     const totalPot = multiplayerLobby.reduce((sum, p) => sum + p.amount, 0);
-    const madeCount = multiplayerLobby.filter(p => p.prediction === 'MADE').length;
-    const missedCount = multiplayerLobby.filter(p => p.prediction === 'MISSED').length;
-    const sortedLobby = [...multiplayerLobby].sort((a, b) => b.amount - a.amount);
+    const madeCount = multiplayerLobby.filter(
+      (p) => p.prediction === "MADE"
+    ).length;
+    const missedCount = multiplayerLobby.filter(
+      (p) => p.prediction === "MISSED"
+    ).length;
+    const sortedLobby = [...multiplayerLobby].sort(
+      (a, b) => b.amount - a.amount
+    );
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
         <nav className="bg-black/30 backdrop-blur-md border-b border-white/10">
           <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <button 
+            <button
               onClick={resetGame}
               className="text-white/80 hover:text-white transition"
             >
@@ -757,11 +832,15 @@ export default function App() {
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">
                 <Users size={18} className="text-blue-400" />
-                <span className="text-white font-semibold">{multiplayerLobby.length} Players</span>
+                <span className="text-white font-semibold">
+                  {multiplayerLobby.length} Players
+                </span>
               </div>
               <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
                 <DollarSign size={18} className="text-green-400" />
-                <span className="text-white font-semibold">${formatBalance(user.balance)}</span>
+                <span className="text-white font-semibold">
+                  ${formatBalance(user.balance)}
+                </span>
               </div>
             </div>
           </div>
@@ -772,27 +851,43 @@ export default function App() {
             <div className="lg:col-span-2">
               <div className="relative bg-black rounded-3xl overflow-hidden mb-8 shadow-2xl">
                 <div className="aspect-video bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
-                  {gameState.status === 'revealing' || gameState.status === 'completed' ? (
+                  {gameState.status === "revealing" ||
+                  gameState.status === "completed" ? (
                     <div className="text-center">
-                      <div className={`w-32 h-32 rounded-full mx-auto mb-6 flex items-center justify-center ${
-                        gameState.outcome === 'MADE' ? 'bg-green-500/20' : 'bg-red-500/20'
-                      }`}>
+                      <div
+                        className={`w-32 h-32 rounded-full mx-auto mb-6 flex items-center justify-center ${
+                          gameState.outcome === "MADE"
+                            ? "bg-green-500/20"
+                            : "bg-red-500/20"
+                        }`}
+                      >
                         <div className="text-6xl">
-                          {gameState.outcome === 'MADE' ? '✓' : '✗'}
+                          {gameState.outcome === "MADE" ? "✓" : "✗"}
                         </div>
                       </div>
                       <div className="text-4xl font-bold text-white mb-2">
-                        Shot {gameState.outcome === 'MADE' ? 'Made!' : 'Missed!'}
+                        Shot{" "}
+                        {gameState.outcome === "MADE" ? "Made!" : "Missed!"}
                       </div>
-                      {gameState.status === 'completed' && (
+                      {gameState.status === "completed" && (
                         <>
                           {gameState.won === null ? (
                             <div className="text-xl text-white/60">
                               No bet placed - Just watching! 👀
                             </div>
                           ) : (
-                            <div className={`text-2xl font-semibold ${gameState.won ? 'text-green-400' : 'text-red-400'}`}>
-                              {gameState.won ? `You Won ${formatBalance(gameState.payout)}! 🎉` : `You Lost ${formatBalance(betAmount)} 😞`}
+                            <div
+                              className={`text-2xl font-semibold ${
+                                gameState.won
+                                  ? "text-green-400"
+                                  : "text-red-400"
+                              }`}
+                            >
+                              {gameState.won
+                                ? `You Won ${formatBalance(
+                                    gameState.payout
+                                  )}! 🎉`
+                                : `You Lost ${formatBalance(betAmount)} 😞`}
                             </div>
                           )}
                           <div className="text-white/60 mt-4">
@@ -804,7 +899,9 @@ export default function App() {
                   ) : (
                     <div className="text-center">
                       <div className="w-24 h-24 border-8 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-6" />
-                      <div className="text-white text-2xl font-semibold">Multiplayer Shot Loading...</div>
+                      <div className="text-white text-2xl font-semibold">
+                        Multiplayer Shot Loading...
+                      </div>
                     </div>
                   )}
                 </div>
@@ -817,14 +914,18 @@ export default function App() {
                   </div>
                 )}
                 <div className="absolute bottom-4 right-4 bg-gradient-to-r from-blue-500 to-purple-500 backdrop-blur-sm px-4 py-2 rounded-full">
-                  <div className="text-white font-bold text-lg">Pot: ${formatBalance(totalPot)}</div>
+                  <div className="text-white font-bold text-lg">
+                    Pot: ${formatBalance(totalPot)}
+                  </div>
                 </div>
               </div>
 
-              {!gameState.betPlaced && gameState.status === 'betting' && (
+              {!gameState.betPlaced && gameState.status === "betting" && (
                 <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-6">
-                  <h3 className="text-2xl font-bold text-white mb-4">Place Your Bet</h3>
-                  
+                  <h3 className="text-2xl font-bold text-white mb-4">
+                    Place Your Bet
+                  </h3>
+
                   <div className="mb-4">
                     <input
                       type="range"
@@ -836,42 +937,54 @@ export default function App() {
                     />
                     <div className="flex justify-between mt-2">
                       <span className="text-white/60">$10</span>
-                      <span className="text-2xl font-bold text-white">${betAmount}</span>
-                      <span className="text-white/60">${Math.min(500, user.balance)}</span>
+                      <span className="text-2xl font-bold text-white">
+                        ${betAmount}
+                      </span>
+                      <span className="text-white/60">
+                        ${Math.min(500, user.balance)}
+                      </span>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <button
-                      onClick={() => setPrediction('MADE')}
+                      onClick={() => setPrediction("MADE")}
                       className={`p-4 rounded-xl border-2 transition-all ${
-                        prediction === 'MADE'
-                          ? 'bg-green-500/30 border-green-400 scale-105'
-                          : 'bg-white/5 border-white/20 hover:border-green-400/50'
+                        prediction === "MADE"
+                          ? "bg-green-500/30 border-green-400 scale-105"
+                          : "bg-white/5 border-white/20 hover:border-green-400/50"
                       }`}
                     >
                       <div className="text-3xl mb-2">🏀</div>
-                      <div className="text-lg font-bold text-white">Goes In</div>
-                      {prediction === 'MADE' && (
+                      <div className="text-lg font-bold text-white">
+                        Goes In
+                      </div>
+                      {prediction === "MADE" && (
                         <div className="text-green-400 text-sm mt-2">
-                          Win: ${formatBalance(calculatePotentialWin(betAmount, 'MADE'))}
+                          Win: $
+                          {formatBalance(
+                            calculatePotentialWin(betAmount, "MADE")
+                          )}
                         </div>
                       )}
                     </button>
 
                     <button
-                      onClick={() => setPrediction('MISSED')}
+                      onClick={() => setPrediction("MISSED")}
                       className={`p-4 rounded-xl border-2 transition-all ${
-                        prediction === 'MISSED'
-                          ? 'bg-red-500/30 border-red-400 scale-105'
-                          : 'bg-white/5 border-white/20 hover:border-red-400/50'
+                        prediction === "MISSED"
+                          ? "bg-red-500/30 border-red-400 scale-105"
+                          : "bg-white/5 border-white/20 hover:border-red-400/50"
                       }`}
                     >
                       <div className="text-3xl mb-2">❌</div>
                       <div className="text-lg font-bold text-white">Misses</div>
-                      {prediction === 'MISSED' && (
+                      {prediction === "MISSED" && (
                         <div className="text-red-400 text-sm mt-2">
-                          Win: ${formatBalance(calculatePotentialWin(betAmount, 'MISSED'))}
+                          Win: $
+                          {formatBalance(
+                            calculatePotentialWin(betAmount, "MISSED")
+                          )}
                         </div>
                       )}
                     </button>
@@ -882,8 +995,8 @@ export default function App() {
                     disabled={!prediction}
                     className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
                       prediction
-                        ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:shadow-lg'
-                        : 'bg-white/10 text-white/40 cursor-not-allowed'
+                        ? "bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:shadow-lg"
+                        : "bg-white/10 text-white/40 cursor-not-allowed"
                     }`}
                   >
                     Join Game - ${betAmount}
@@ -891,14 +1004,19 @@ export default function App() {
                 </div>
               )}
 
-              {gameState.betPlaced && gameState.status === 'betting' && (
+              {gameState.betPlaced && gameState.status === "betting" && (
                 <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-6 text-center">
-                  <div className="text-green-400 text-lg mb-2">✓ Bet Placed!</div>
+                  <div className="text-green-400 text-lg mb-2">
+                    ✓ Bet Placed!
+                  </div>
                   <div className="text-white text-2xl font-bold mb-2">
-                    ${betAmount} on {prediction === 'MADE' ? '🏀' : '❌'}
+                    ${betAmount} on {prediction === "MADE" ? "🏀" : "❌"}
                   </div>
                   <div className="text-white/60 text-sm">
-                    Potential Win: ${formatBalance(calculatePotentialWin(betAmount, prediction))}
+                    Potential Win: $
+                    {formatBalance(
+                      calculatePotentialWin(betAmount, prediction)
+                    )}
                   </div>
                 </div>
               )}
@@ -908,18 +1026,24 @@ export default function App() {
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-white">Players</h3>
                 <div className="bg-blue-500/20 px-3 py-1 rounded-full">
-                  <span className="text-blue-400 font-semibold">{multiplayerLobby.length}</span>
+                  <span className="text-blue-400 font-semibold">
+                    {multiplayerLobby.length}
+                  </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3">
                   <div className="text-green-400 text-sm mb-1">🏀 Goes In</div>
-                  <div className="text-white font-bold text-xl">{madeCount}</div>
+                  <div className="text-white font-bold text-xl">
+                    {madeCount}
+                  </div>
                 </div>
                 <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3">
                   <div className="text-red-400 text-sm mb-1">❌ Misses</div>
-                  <div className="text-white font-bold text-xl">{missedCount}</div>
+                  <div className="text-white font-bold text-xl">
+                    {missedCount}
+                  </div>
                 </div>
               </div>
 
@@ -930,31 +1054,44 @@ export default function App() {
                   </div>
                 ) : (
                   sortedLobby.map((player, idx) => {
-                    const potentialWin = calculatePotentialWin(player.amount, player.prediction);
+                    const potentialWin = calculatePotentialWin(
+                      player.amount,
+                      player.prediction
+                    );
                     return (
                       <div
                         key={idx}
                         className={`p-3 rounded-lg transition-all ${
                           player.isUser
-                            ? 'bg-blue-500/20 border border-blue-500/30'
-                            : 'bg-white/5'
+                            ? "bg-blue-500/20 border border-blue-500/30"
+                            : "bg-white/5"
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full ${
-                              player.isUser
-                                ? 'bg-gradient-to-br from-blue-500 to-cyan-500'
-                                : 'bg-gradient-to-br from-gray-500 to-gray-600'
-                            }`} />
-                            <span className="text-white font-medium">{player.name}</span>
+                            <div
+                              className={`w-8 h-8 rounded-full ${
+                                player.isUser
+                                  ? "bg-gradient-to-br from-blue-500 to-cyan-500"
+                                  : "bg-gradient-to-br from-gray-500 to-gray-600"
+                              }`}
+                            />
+                            <span className="text-white font-medium">
+                              {player.name}
+                            </span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-white/80">${formatBalance(player.amount)}</span>
-                            <span className={`text-lg ${
-                              player.prediction === 'MADE' ? 'text-green-400' : 'text-red-400'
-                            }`}>
-                              {player.prediction === 'MADE' ? '🏀' : '❌'}
+                            <span className="text-white/80">
+                              ${formatBalance(player.amount)}
+                            </span>
+                            <span
+                              className={`text-lg ${
+                                player.prediction === "MADE"
+                                  ? "text-green-400"
+                                  : "text-red-400"
+                              }`}
+                            >
+                              {player.prediction === "MADE" ? "🏀" : "❌"}
                             </span>
                           </div>
                         </div>
