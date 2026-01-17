@@ -166,7 +166,7 @@ export default function App() {
     });
     setTimeLeft(15);
     setPrediction(null);
-    setBetAmount(50);
+    setBetAmount(10);
     setCurrentView('game');
   };
 
@@ -182,7 +182,7 @@ export default function App() {
     });
     setTimeLeft(20);
     setPrediction(null);
-    setBetAmount(50);
+    setBetAmount(10);
     setMultiplayerLobby([]);
     setUserExitedManually(false);
     setCurrentView('multiplayer');
@@ -578,7 +578,7 @@ export default function App() {
               <ul className="space-y-3 mb-8">
                 <li className="flex items-center gap-3 text-white/80">
                   <CheckCircle size={20} className="text-green-400" />
-                  Win 2x your bet
+                  Win 1.5x your bet
                 </li>
                 <li className="flex items-center gap-3 text-white/80">
                   <CheckCircle size={20} className="text-green-400" />
