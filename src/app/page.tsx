@@ -60,7 +60,7 @@ export default function App() {
   ];
 
   const [currentView, setCurrentView] = useState<string>('home');
-  const [user, setUser] = useState<User>({ name: 'Demo Player', email: 'demo@hoopshot.com', balance: 1000 });
+  const [user, setUser] = useState<User>({ name: 'Demo Player', email: 'demo@hoopshot.com', balance: 10000 });
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [betAmount, setBetAmount] = useState<number>(50);
   const [prediction, setPrediction] = useState<Outcome | null>(null);
@@ -69,46 +69,41 @@ export default function App() {
   const [multiplayerLobby, setMultiplayerLobby] = useState<Player[]>([]);
   const [userExitedManually, setUserExitedManually] = useState<boolean>(false);
   const multiplayerRestartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  const revealCalledRef = useRef<boolean>(false);
+  const gameStateRef = useRef<GameState | null>(null);
 
-  // Защита от двойного вызова reveal
-const revealCalledRef = useRef<boolean>(false);
-
-// Для безопасного чтения актуального gameState в асинхронных колбэках
-const gameStateRef = useRef<typeof gameState | null>(null);
-useEffect(() => {
-  gameStateRef.current = gameState;
-}, [gameState]);
-
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
 
   const formatBalance = (balance: number): string => {
     return balance.toFixed(2);
   };
 
-useEffect(() => {
-  if (timeLeft === null || timeLeft <= 0) return;
-  if (!gameState || gameState.status !== 'betting') return;
+  useEffect(() => {
+    if (timeLeft === null || timeLeft <= 0) return;
+    if (!gameState || gameState.status !== 'betting') return;
 
-  const timer = setInterval(() => {
-    setTimeLeft(prev => {
-      if (prev === null) return null;
-      if (prev <= 1) {
-        clearInterval(timer);
-        // Вызываем reveal один раз (референс + проверка в revealOutcome дополнительно)
-        revealOutcome();
-        return null;
-      }
-      return prev - 1;
-    });
-  }, 1000);
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          clearInterval(timer);
+          revealOutcome();
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-  return () => clearInterval(timer);
-}, [timeLeft, gameState?.status]);
-
+    return () => clearInterval(timer);
+  }, [timeLeft, gameState?.status]);
 
   useEffect(() => {
     if (currentView === 'multiplayer' && gameState?.mode === 'multiplayer' && multiplayerLobby.length === 0 && !gameState.botsLoaded) {
-      const botNames = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Ivy', 'Jack'];
-      const numberOfBots = Math.floor(Math.random() * 7) + 4;
+      const botNames = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Ivy', 'Jack', 'Kate', 'Liam', 'Mia', 'Noah', 'Olivia'];
+      const numberOfBots = Math.floor(Math.random() * 8) + 5; // 5-12 ботов
       
       const initialBots: Player[] = [];
       const usedNames = new Set<string>();
@@ -120,9 +115,20 @@ useEffect(() => {
         } while (usedNames.has(name));
         usedNames.add(name);
         
+        // Распределение ставок: 70% - малые (20-150), 25% - средние (150-500), 5% - большие (500-1000)
+        let amount: number;
+        const roll = Math.random();
+        if (roll < 0.7) {
+          amount = Math.floor(Math.random() * 130) + 20; // 20-150
+        } else if (roll < 0.95) {
+          amount = Math.floor(Math.random() * 350) + 150; // 150-500
+        } else {
+          amount = Math.floor(Math.random() * 500) + 500; // 500-1000
+        }
+        
         initialBots.push({
           name,
-          amount: Math.floor(Math.random() * 150) + 20,
+          amount,
           prediction: Math.random() > 0.5 ? 'MADE' : 'MISSED'
         });
       }
@@ -160,6 +166,7 @@ useEffect(() => {
     });
     setTimeLeft(15);
     setPrediction(null);
+    setBetAmount(50);
     setCurrentView('game');
   };
 
@@ -175,74 +182,157 @@ useEffect(() => {
     });
     setTimeLeft(20);
     setPrediction(null);
+    setBetAmount(50);
     setMultiplayerLobby([]);
     setUserExitedManually(false);
     setCurrentView('multiplayer');
   };
 
-const placeBet = () => {
-  if (!prediction || betAmount <= 0 || !gameState) return;
+  const placeBet = () => {
+    if (!prediction || betAmount <= 0 || !gameState) return;
+    if (betAmount > user.balance) {
+      alert('Insufficient balance!');
+      return;
+    }
 
-  // снимаем ставку один раз
-  setUser(prev => ({ ...prev, balance: Number(prev.balance) - Number(betAmount) }));
-
-  // ставим флаг betPlaced и сохраняем ставку игрока
-  setGameState(prev => prev ? ({
-    ...prev,
-    betPlaced: true,
-    userBet: { amount: betAmount, prediction }
-  }) : prev);
-
-  // мультиплеерная логика — добавляем в лобби и увеличиваем totalPot
-  if (gameState?.mode === 'multiplayer') {
-    setMultiplayerLobby(prev => [...prev, {
-      name: user.name,
-      amount: betAmount,
-      prediction,
-      isUser: true
-    }]);
+    setUser(prev => ({ ...prev, balance: Number(prev.balance) - Number(betAmount) }));
 
     setGameState(prev => prev ? ({
       ...prev,
-      totalPot: (prev.totalPot || 0) + betAmount
+      betPlaced: true,
+      userBet: { amount: betAmount, prediction }
     }) : prev);
-  }
-};
 
+    if (gameState?.mode === 'multiplayer') {
+      setMultiplayerLobby(prev => [...prev, {
+        name: user.name,
+        amount: betAmount,
+        prediction,
+        isUser: true
+      }]);
 
-const revealOutcome = () => {
-  // защита: если уже обрабатывается или нет gameState — игнорируем
-  if (revealCalledRef.current) return;
-  const gs = gameStateRef.current;
-  if (!gs || gs.status !== 'betting') return;
+      setGameState(prev => prev ? ({
+        ...prev,
+        totalPot: (prev.totalPot || 0) + betAmount
+      }) : prev);
+    }
+  };
 
-  // ставим флаг, чтобы второй вызов был проигнорирован
-  revealCalledRef.current = true;
+  const cancelBet = () => {
+    if (!gameState?.betPlaced) return;
 
-  // переводим статус в "revealing"
-  setGameState(prev => prev ? ({ ...prev, status: 'revealing' }) : prev);
+    // Возвращаем деньги
+    setUser(prev => ({ ...prev, balance: Number(prev.balance) + Number(betAmount) }));
 
-  // Снимок локальных значений (чтобы избежать stale closures)
-  const localMode = gs.mode;
-  const localBetPlaced = !!gs.betPlaced;
-  const localVideoOutcome = gs.video?.outcome ?? DEMO_VIDEOS[Math.floor(Math.random() * DEMO_VIDEOS.length)].outcome;
-  const localPrediction = prediction;
-  const localBetAmount = betAmount;
-  const localLobby = multiplayerLobby.slice(); // локальная копия лобби
+    // Убираем из лобби если мультиплеер
+    if (gameState.mode === 'multiplayer') {
+      setMultiplayerLobby(prev => prev.filter(p => !p.isUser));
+      setGameState(prev => prev ? ({
+        ...prev,
+        totalPot: (prev.totalPot || 0) - betAmount,
+        betPlaced: false,
+        userBet: undefined
+      }) : prev);
+    } else {
+      setGameState(prev => prev ? ({
+        ...prev,
+        betPlaced: false,
+        userBet: undefined
+      }) : prev);
+    }
 
-  setTimeout(() => {
-    try {
-      // Если ставки не было — завершаем без выплат
-      if (!localBetPlaced) {
+    setPrediction(null);
+  };
+
+  const revealOutcome = () => {
+    if (revealCalledRef.current) return;
+    const gs = gameStateRef.current;
+    if (!gs || gs.status !== 'betting') return;
+
+    revealCalledRef.current = true;
+
+    setGameState(prev => prev ? ({ ...prev, status: 'revealing' }) : prev);
+
+    const localMode = gs.mode;
+    const localBetPlaced = !!gs.betPlaced;
+    const localVideoOutcome = gs.video?.outcome ?? DEMO_VIDEOS[Math.floor(Math.random() * DEMO_VIDEOS.length)].outcome;
+    const localPrediction = prediction;
+    const localBetAmount = betAmount;
+    const localLobby = multiplayerLobby.slice();
+
+    setTimeout(() => {
+      try {
+        if (!localBetPlaced) {
+          setGameState(prev => prev ? ({
+            ...prev,
+            status: 'completed',
+            outcome: localVideoOutcome,
+            won: null,
+            payout: 0
+          }) : prev);
+
+          if (localMode === 'multiplayer' && !userExitedManually) {
+            multiplayerRestartTimeoutRef.current = setTimeout(() => {
+              if (currentView === 'multiplayer' && !userExitedManually) {
+                startMultiplayerGame();
+              }
+            }, 5000);
+          }
+
+          return;
+        }
+
+        const won = localPrediction === localVideoOutcome;
+        let payout = 0;
+
+        if (localMode === 'solo' && won) {
+          payout = Number(localBetAmount) * 2;
+        } else if (localMode === 'multiplayer') {
+          const totalPot = localLobby.reduce((sum, p) => sum + Number(p.amount), 0);
+          const winners = localLobby.filter(p => p.prediction === localVideoOutcome);
+          const winnerBets = winners.reduce((sum, p) => sum + Number(p.amount), 0);
+
+          if (winnerBets > 0 && won) {
+            const commission = totalPot * 0.1;
+            const netPot = totalPot - commission;
+            payout = (Number(localBetAmount) / winnerBets) * netPot;
+          } else {
+            payout = 0;
+          }
+        }
+
+        if (payout > 0) {
+          setUser(prev => ({ ...prev, balance: Number(prev.balance) + Number(payout) }));
+        }
+
         setGameState(prev => prev ? ({
           ...prev,
           status: 'completed',
           outcome: localVideoOutcome,
-          won: null,
-          payout: 0
+          won,
+          payout,
+          betPlaced: false
         }) : prev);
 
-        // мультиплеер: рестарт по таймауту, если нужно
+        setGameHistory(prev => {
+          const newEntry: GameHistoryEntry = {
+            mode: localMode,
+            bet: localBetAmount,
+            prediction: localPrediction!,
+            outcome: localVideoOutcome,
+            won,
+            payout,
+            timestamp: new Date()
+          };
+          const isDuplicate = prev.some(entry =>
+            Math.abs(entry.timestamp.getTime() - newEntry.timestamp.getTime()) < 1000 &&
+            entry.bet === newEntry.bet &&
+            entry.prediction === newEntry.prediction
+          );
+          if (isDuplicate) return prev;
+          return [newEntry, ...prev].slice(0, 10);
+        });
+
         if (localMode === 'multiplayer' && !userExitedManually) {
           multiplayerRestartTimeoutRef.current = setTimeout(() => {
             if (currentView === 'multiplayer' && !userExitedManually) {
@@ -250,82 +340,11 @@ const revealOutcome = () => {
             }
           }, 5000);
         }
-
-        return;
+      } finally {
+        revealCalledRef.current = false;
       }
-
-      // Вычисляем результат
-      const won = localPrediction === localVideoOutcome;
-      let payout = 0;
-
-      if (localMode === 'solo' && won) {
-        // ставка уже списана при placeBet => выплачиваем 2x от ставки (ставка + выигрыш)
-        payout = Number(localBetAmount) * 2;
-      } else if (localMode === 'multiplayer') {
-        const totalPot = localLobby.reduce((sum, p) => sum + Number(p.amount), 0);
-        const winners = localLobby.filter(p => p.prediction === localVideoOutcome);
-        const winnerBets = winners.reduce((sum, p) => sum + Number(p.amount), 0);
-
-        if (winnerBets > 0 && won) {
-          const commission = totalPot * 0.1; // 10%
-          const netPot = totalPot - commission;
-          // ПРАВИЛЬНАЯ формула: выигрыш = (твоя ставка / все ставки победителей) * netPot
-          payout = (Number(localBetAmount) / winnerBets) * netPot;
-        } else {
-          payout = 0;
-        }
-      }
-
-      // Выплата делаем ровно один раз
-      if (payout > 0) {
-        setUser(prev => ({ ...prev, balance: Number(prev.balance) + Number(payout) }));
-      }
-
-      // Обновляем состояние игры итоговыми данными
-      setGameState(prev => prev ? ({
-        ...prev,
-        status: 'completed',
-        outcome: localVideoOutcome,
-        won,
-        payout,
-        betPlaced: false
-      }) : prev);
-
-      // Добавляем в историю (защита от дублей по таймштампу)
-      setGameHistory(prev => {
-        const newEntry = {
-          mode: localMode,
-          bet: localBetAmount,
-          prediction: localPrediction!,
-          outcome: localVideoOutcome,
-          won,
-          payout,
-          timestamp: new Date()
-        };
-        const isDuplicate = prev.some(entry =>
-          Math.abs(entry.timestamp.getTime() - newEntry.timestamp.getTime()) < 1000 &&
-          entry.bet === newEntry.bet &&
-          entry.prediction === newEntry.prediction
-        );
-        if (isDuplicate) return prev;
-        return [newEntry, ...prev].slice(0, 10);
-      });
-
-      // мультиплеер рестарт, если нужен
-      if (localMode === 'multiplayer' && !userExitedManually) {
-        multiplayerRestartTimeoutRef.current = setTimeout(() => {
-          if (currentView === 'multiplayer' && !userExitedManually) {
-            startMultiplayerGame();
-          }
-        }, 5000);
-      }
-    } finally {
-      // снимаем флаг чтобы разрешить следующий раунд
-      revealCalledRef.current = false;
-    }
-  }, 2000);
-};
-
+    }, 2000);
+  };
 
   const restartSoloGame = () => {
     const video = DEMO_VIDEOS[Math.floor(Math.random() * DEMO_VIDEOS.length)];
@@ -337,6 +356,7 @@ const revealOutcome = () => {
     });
     setTimeLeft(15);
     setPrediction(null);
+    setBetAmount(50);
   };
 
   const resetGame = () => {
@@ -350,24 +370,24 @@ const revealOutcome = () => {
     setTimeLeft(null);
   };
 
-const calculatePotentialWin = (playerBet: number, playerPrediction: Outcome): number => {
-  if (!multiplayerLobby.length) return 0;
+  const calculatePotentialWin = (playerBet: number, playerPrediction: Outcome): number => {
+    if (!multiplayerLobby.length) return 0;
 
-  const totalPot = multiplayerLobby.reduce((sum, p) => sum + p.amount, 0);
-  const samePrediction = multiplayerLobby.filter(p => p.prediction === playerPrediction);
-  const winnerBets = samePrediction.reduce((sum, p) => sum + p.amount, 0);
+    const totalPot = multiplayerLobby.reduce((sum, p) => sum + p.amount, 0);
+    const samePrediction = multiplayerLobby.filter(p => p.prediction === playerPrediction);
+    const winnerBets = samePrediction.reduce((sum, p) => sum + p.amount, 0);
 
-  if (winnerBets === 0) return 0;
+    if (winnerBets === 0) return 0;
 
-  const commission = totalPot * 0.1;
-  const netPot = totalPot - commission;
+    const commission = totalPot * 0.1;
+    const netPot = totalPot - commission;
 
-  return (playerBet / winnerBets) * netPot;
-};
+    return (playerBet / winnerBets) * netPot;
+  };
+
   interface NavBarProps {
     showExit?: boolean;
   }
-  
 
   const NavBar: React.FC<NavBarProps> = ({ showExit = false }) => (
     <nav className="bg-black/30 backdrop-blur-md border-b border-white/10">
@@ -417,7 +437,7 @@ const calculatePotentialWin = (playerBet: number, playerPrediction: Outcome): nu
   if (currentView === 'profile') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-        <NavBar showExit={true}/>
+        <NavBar showExit={true} />
 
         <div className="max-w-4xl mx-auto px-6 py-12">
           <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8 mb-8">
@@ -695,18 +715,26 @@ const calculatePotentialWin = (playerBet: number, playerPrediction: Outcome): nu
               <div className="mb-6">
                 <label className="block text-white/80 mb-3 text-lg">Bet Amount</label>
                 <input
-                  type="range"
+                  type="number"
                   min="10"
-                  max={Math.min(500, user.balance)}
+                  max="10000"
                   value={betAmount}
-                  onChange={(e) => setBetAmount(Number(e.target.value))}
-                  className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    if (value <= user.balance && value <= 10000) {
+                      setBetAmount(value);
+                    }
+                  }}
+                  className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-white text-2xl font-bold text-center focus:outline-none focus:border-blue-400"
+                  placeholder="Enter amount"
                 />
                 <div className="flex justify-between items-center mt-2">
-                  <span className="text-white/60">$10</span>
-                  <span className="text-3xl font-bold text-white">${betAmount}</span>
-                  <span className="text-white/60">${Math.min(500, user.balance)}</span>
+                  <span className="text-white/60 text-sm">Min: $10</span>
+                  <span className="text-white/60 text-sm">Max: ${Math.min(10000, user.balance)}</span>
                 </div>
+                {betAmount > user.balance && (
+                  <p className="text-red-400 text-sm mt-2">Insufficient balance!</p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 mb-6">
@@ -739,9 +767,9 @@ const calculatePotentialWin = (playerBet: number, playerPrediction: Outcome): nu
 
               <button
                 onClick={placeBet}
-                disabled={!prediction}
+                disabled={!prediction || betAmount > user.balance || betAmount < 10}
                 className={`w-full py-5 rounded-2xl font-bold text-xl transition-all ${
-                  prediction
+                  prediction && betAmount <= user.balance && betAmount >= 10
                     ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/50'
                     : 'bg-white/10 text-white/40 cursor-not-allowed'
                 }`}
@@ -752,12 +780,20 @@ const calculatePotentialWin = (playerBet: number, playerPrediction: Outcome): nu
           )}
 
           {gameState.betPlaced && gameState.status === 'betting' && (
-            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8 text-center">
-              <div className="text-white/80 text-lg mb-4">Your bet is placed!</div>
-              <div className="text-white text-3xl font-bold mb-2">
-                ${betAmount} on {prediction === 'MADE' ? '🏀 Shot Goes In' : '❌ Shot Misses'}
+            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8">
+              <div className="text-center mb-6">
+                <div className="text-white/80 text-lg mb-4">Your bet is placed!</div>
+                <div className="text-white text-3xl font-bold mb-2">
+                  ${betAmount} on {prediction === 'MADE' ? '🏀 Shot Goes In' : '❌ Shot Misses'}
+                </div>
+                <div className="text-white/60">Waiting for reveal...</div>
               </div>
-              <div className="text-white/60">Waiting for reveal...</div>
+              <button
+                onClick={cancelBet}
+                className="w-full bg-red-500/20 border border-red-500/50 text-red-400 py-4 rounded-xl font-bold hover:bg-red-500/30 transition-all"
+              >
+                Cancel Bet
+              </button>
             </div>
           )}
 
@@ -879,19 +915,28 @@ const calculatePotentialWin = (playerBet: number, playerPrediction: Outcome): nu
                   <h3 className="text-2xl font-bold text-white mb-4">Place Your Bet</h3>
                   
                   <div className="mb-4">
+                    <label className="block text-white/80 mb-2">Bet Amount</label>
                     <input
-                      type="range"
+                      type="number"
                       min="10"
-                      max={Math.min(500, user.balance)}
+                      max="10000"
                       value={betAmount}
-                      onChange={(e) => setBetAmount(Number(e.target.value))}
-                      className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
+                      onChange={(e) => {
+                        const value = Number(e.target.value);
+                        if (value <= user.balance && value <= 10000) {
+                          setBetAmount(value);
+                        }
+                      }}
+                      className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-white text-xl font-bold text-center focus:outline-none focus:border-blue-400"
+                      placeholder="Enter amount"
                     />
                     <div className="flex justify-between mt-2">
-                      <span className="text-white/60">$10</span>
-                      <span className="text-2xl font-bold text-white">${betAmount}</span>
-                      <span className="text-white/60">${Math.min(500, user.balance)}</span>
+                      <span className="text-white/60 text-sm">Min: $10</span>
+                      <span className="text-white/60 text-sm">Max: ${Math.min(10000, user.balance)}</span>
                     </div>
+                    {betAmount > user.balance && (
+                      <p className="text-red-400 text-sm mt-1">Insufficient balance!</p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 mb-4">
@@ -932,9 +977,9 @@ const calculatePotentialWin = (playerBet: number, playerPrediction: Outcome): nu
 
                   <button
                     onClick={placeBet}
-                    disabled={!prediction}
+                    disabled={!prediction || betAmount > user.balance || betAmount < 10}
                     className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
-                      prediction
+                      prediction && betAmount <= user.balance && betAmount >= 10
                         ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:shadow-lg'
                         : 'bg-white/10 text-white/40 cursor-not-allowed'
                     }`}
@@ -945,14 +990,22 @@ const calculatePotentialWin = (playerBet: number, playerPrediction: Outcome): nu
               )}
 
               {gameState.betPlaced && gameState.status === 'betting' && (
-                <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-6 text-center">
-                  <div className="text-green-400 text-lg mb-2">✓ Bet Placed!</div>
-                  <div className="text-white text-2xl font-bold mb-2">
-                    ${betAmount} on {prediction === 'MADE' ? '🏀' : '❌'}
+                <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-6">
+                  <div className="text-center mb-4">
+                    <div className="text-green-400 text-lg mb-2">✓ Bet Placed!</div>
+                    <div className="text-white text-2xl font-bold mb-2">
+                      ${betAmount} on {prediction === 'MADE' ? '🏀' : '❌'}
+                    </div>
+                    <div className="text-white/60 text-sm">
+                      Potential Win: ${formatBalance(calculatePotentialWin(betAmount, prediction!) - betAmount)}
+                    </div>
                   </div>
-                  <div className="text-white/60 text-sm">
-                    Potential Win: ${formatBalance(calculatePotentialWin(betAmount, prediction!) - betAmount)}
-                  </div>
+                  <button
+                    onClick={cancelBet}
+                    className="w-full bg-red-500/20 border border-red-500/50 text-red-400 py-3 rounded-xl font-bold hover:bg-red-500/30 transition-all"
+                  >
+                    Cancel Bet
+                  </button>
                 </div>
               )}
             </div>
