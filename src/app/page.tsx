@@ -286,7 +286,7 @@ export default function App() {
         let payout = 0;
 
         if (localMode === 'solo' && won) {
-          payout = Number(localBetAmount) * 2;
+          payout = Number(localBetAmount) * 1.5;
         } else if (localMode === 'multiplayer') {
           const totalPot = localLobby.reduce((sum, p) => sum + Number(p.amount), 0);
           const winners = localLobby.filter(p => p.prediction === localVideoOutcome);
