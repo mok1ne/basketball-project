@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, DollarSign, Users, Trophy, Clock, CheckCircle, XCircle, Settings, Mail } from 'lucide-react';
+import { Play, DollarSign, Users, Trophy, Clock, CheckCircle, XCircle, Settings, Mail, ChevronLeft, ChevronRight } from 'lucide-react';
 
 type Outcome = 'MADE' | 'MISSED';
 type GameMode = 'solo' | 'multiplayer';
@@ -68,10 +68,17 @@ export default function App() {
   const [gameHistory, setGameHistory] = useState<GameHistoryEntry[]>([]);
   const [multiplayerLobby, setMultiplayerLobby] = useState<Player[]>([]);
   const [userExitedManually, setUserExitedManually] = useState<boolean>(false);
+  const [historyPage, setHistoryPage] = useState<number>(0);
   const multiplayerRestartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const revealCalledRef = useRef<boolean>(false);
   const gameStateRef = useRef<GameState | null>(null);
+
+  const ITEMS_PER_PAGE = 10;
+
+  useEffect(() => {
+    document.title = 'HoopShot - Basketball Betting';
+  }, []);
 
   useEffect(() => {
     gameStateRef.current = gameState;
@@ -103,7 +110,7 @@ export default function App() {
   useEffect(() => {
     if (currentView === 'multiplayer' && gameState?.mode === 'multiplayer' && multiplayerLobby.length === 0 && !gameState.botsLoaded) {
       const botNames = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Ivy', 'Jack', 'Kate', 'Liam', 'Mia', 'Noah', 'Olivia'];
-      const numberOfBots = Math.floor(Math.random() * 8) + 5; // 5-12 ботов
+      const numberOfBots = Math.floor(Math.random() * 8) + 5;
       
       const initialBots: Player[] = [];
       const usedNames = new Set<string>();
@@ -115,15 +122,14 @@ export default function App() {
         } while (usedNames.has(name));
         usedNames.add(name);
         
-        // Распределение ставок: 70% - малые (20-150), 25% - средние (150-500), 5% - большие (500-1000)
         let amount: number;
         const roll = Math.random();
         if (roll < 0.7) {
-          amount = Math.floor(Math.random() * 130) + 20; // 20-150
+          amount = Math.floor(Math.random() * 130) + 20;
         } else if (roll < 0.95) {
-          amount = Math.floor(Math.random() * 350) + 150; // 150-500
+          amount = Math.floor(Math.random() * 350) + 150;
         } else {
-          amount = Math.floor(Math.random() * 500) + 3500; // 500-1000
+          amount = Math.floor(Math.random() * 500) + 3500;
         }
         
         initialBots.push({
@@ -166,7 +172,7 @@ export default function App() {
     });
     setTimeLeft(15);
     setPrediction(null);
-    setBetAmount(10);
+    setBetAmount(5);
     setCurrentView('game');
   };
 
@@ -182,7 +188,7 @@ export default function App() {
     });
     setTimeLeft(20);
     setPrediction(null);
-    setBetAmount(10);
+    setBetAmount(5);
     setMultiplayerLobby([]);
     setUserExitedManually(false);
     setCurrentView('multiplayer');
@@ -221,10 +227,8 @@ export default function App() {
   const cancelBet = () => {
     if (!gameState?.betPlaced) return;
 
-    // Возвращаем деньги
     setUser(prev => ({ ...prev, balance: Number(prev.balance) + Number(betAmount) }));
 
-    // Убираем из лобби если мультиплеер
     if (gameState.mode === 'multiplayer') {
       setMultiplayerLobby(prev => prev.filter(p => !p.isUser));
       setGameState(prev => prev ? ({
@@ -330,7 +334,7 @@ export default function App() {
             entry.prediction === newEntry.prediction
           );
           if (isDuplicate) return prev;
-          return [newEntry, ...prev].slice(0, 10);
+          return [newEntry, ...prev];
         });
 
         if (localMode === 'multiplayer' && !userExitedManually) {
@@ -370,11 +374,22 @@ export default function App() {
     setTimeLeft(null);
   };
 
-  const calculatePotentialWin = (playerBet: number, playerPrediction: Outcome): number => {
-    if (!multiplayerLobby.length) return 0;
+  const calculatePotentialWin = (playerBet: number, playerPrediction: Outcome, includeSelf: boolean = false): number => {
+    let tempLobby = [...multiplayerLobby];
+    
+    if (includeSelf && !gameState?.betPlaced) {
+      tempLobby.push({
+        name: user.name,
+        amount: playerBet,
+        prediction: playerPrediction,
+        isUser: true
+      });
+    }
 
-    const totalPot = multiplayerLobby.reduce((sum, p) => sum + p.amount, 0);
-    const samePrediction = multiplayerLobby.filter(p => p.prediction === playerPrediction);
+    if (!tempLobby.length) return 0;
+
+    const totalPot = tempLobby.reduce((sum, p) => sum + p.amount, 0);
+    const samePrediction = tempLobby.filter(p => p.prediction === playerPrediction);
     const winnerBets = samePrediction.reduce((sum, p) => sum + p.amount, 0);
 
     if (winnerBets === 0) return 0;
@@ -409,10 +424,19 @@ export default function App() {
             </div>
           )}
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
+            <button
+              onClick={() => {
+                setUserExitedManually(true);
+                if (multiplayerRestartTimeoutRef.current) {
+                  clearTimeout(multiplayerRestartTimeoutRef.current);
+                }
+                setCurrentView('profile');
+              }}
+              className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full hover:bg-white/15 transition"
+            >
               <DollarSign size={18} className="text-green-400" />
               <span className="text-white font-semibold">${formatBalance(user.balance)}</span>
-            </div>
+            </button>
             <button
               onClick={() => {
                 setUserExitedManually(true);
@@ -435,6 +459,10 @@ export default function App() {
   );
 
   if (currentView === 'profile') {
+    const totalPages = Math.ceil(gameHistory.length / ITEMS_PER_PAGE);
+    const startIndex = historyPage * ITEMS_PER_PAGE;
+    const paginatedHistory = gameHistory.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
         <NavBar showExit={true} />
@@ -506,35 +534,67 @@ export default function App() {
                 <p className="text-white/60 text-lg">No games played yet</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {gameHistory.map((game, idx) => (
-                  <div key={idx} className="bg-white/5 rounded-xl p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          game.won ? 'bg-green-500/20' : 'bg-red-500/20'
-                        }`}>
-                          {game.won ? <CheckCircle size={20} className="text-green-400" /> : <XCircle size={20} className="text-red-400" />}
+              <>
+                <div className="space-y-3 mb-6">
+                  {paginatedHistory.map((game, idx) => (
+                    <div key={startIndex + idx} className="bg-white/5 rounded-xl p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                            game.won ? 'bg-green-500/20' : 'bg-red-500/20'
+                          }`}>
+                            {game.won ? <CheckCircle size={20} className="text-green-400" /> : <XCircle size={20} className="text-red-400" />}
+                          </div>
+                          <div>
+                            <div className="text-white font-semibold capitalize">{game.mode} Mode</div>
+                            <div className="text-white/60 text-sm">
+                              {game.timestamp.toLocaleString()}
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-white font-semibold capitalize">{game.mode} Mode</div>
+                        <div className="text-right">
+                          <div className={`text-xl font-bold ${game.won ? 'text-green-400' : 'text-red-400'}`}>
+                            {game.won ? `+${formatBalance(game.payout - game.bet)}` : `-${formatBalance(game.bet)}`}
+                          </div>
                           <div className="text-white/60 text-sm">
-                            {game.timestamp.toLocaleString()}
+                            {game.prediction} → {game.outcome}
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className={`text-xl font-bold ${game.won ? 'text-green-400' : 'text-red-400'}`}>
-                          {game.won ? `+$${formatBalance(game.payout - game.bet)}` : `-$${formatBalance(game.bet)}`}
-                        </div>
-                        <div className="text-white/60 text-sm">
-                          {game.prediction} → {game.outcome}
-                        </div>
-                      </div>
                     </div>
+                  ))}
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-4">
+                    <button
+                      onClick={() => setHistoryPage(prev => Math.max(0, prev - 1))}
+                      disabled={historyPage === 0}
+                      className={`p-2 rounded-lg transition ${
+                        historyPage === 0
+                          ? 'bg-white/5 text-white/30 cursor-not-allowed'
+                          : 'bg-white/10 text-white hover:bg-white/20'
+                      }`}
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    <span className="text-white">
+                      Page {historyPage + 1} of {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setHistoryPage(prev => Math.min(totalPages - 1, prev + 1))}
+                      disabled={historyPage === totalPages - 1}
+                      className={`p-2 rounded-lg transition ${
+                        historyPage === totalPages - 1
+                          ? 'bg-white/5 text-white/30 cursor-not-allowed'
+                          : 'bg-white/10 text-white hover:bg-white/20'
+                      }`}
+                    >
+                      <ChevronRight size={20} />
+                    </button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -678,7 +738,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className={`text-2xl font-semibold ${gameState.won ? 'text-green-400' : 'text-red-400'}`}>
-                      {gameState.won ? `You Won $${formatBalance((gameState.payout || 0) - betAmount)}! 🎉` : `You Lost $${formatBalance(betAmount)} 😞`}
+                      {gameState.won ? `You Won ${formatBalance((gameState.payout || 0) - betAmount)}! 🎉` : `You Lost ${formatBalance(betAmount)} 😞`}
                     </div>
                   )}
                 </div>
@@ -716,20 +776,26 @@ export default function App() {
                 <label className="block text-white/80 mb-3 text-lg">Bet Amount</label>
                 <input
                   type="number"
-                  min="10"
+                  min="5"
                   max="10000"
-                  value={betAmount}
+                  value={betAmount || ''}
                   onChange={(e) => {
-                    const value = Number(e.target.value);
+                    const value = e.target.value === '' ? 0 : Number(e.target.value);
                     if (value <= user.balance && value <= 10000) {
                       setBetAmount(value);
+                    }
+                  }}
+                  onFocus={(e) => {
+                    if (e.target.value === '0') {
+                      setBetAmount(0);
+                      e.target.value = '';
                     }
                   }}
                   className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-white text-2xl font-bold text-center focus:outline-none focus:border-blue-400"
                   placeholder="Enter amount"
                 />
                 <div className="flex justify-between items-center mt-2">
-                  <span className="text-white/60 text-sm">Min: $10</span>
+                  <span className="text-white/60 text-sm">Min: $5</span>
                   <span className="text-white/60 text-sm">Max: ${Math.min(10000, user.balance)}</span>
                 </div>
                 {betAmount > user.balance && (
@@ -748,7 +814,7 @@ export default function App() {
                 >
                   <div className="text-5xl mb-3">🏀</div>
                   <div className="text-xl font-bold text-white">Shot Goes In</div>
-                  <div className="text-white/60 mt-1">Win 2x</div>
+                  <div className="text-white/60 mt-1">Win 1.5x</div>
                 </button>
 
                 <button
@@ -761,7 +827,7 @@ export default function App() {
                 >
                   <div className="text-5xl mb-3">❌</div>
                   <div className="text-xl font-bold text-white">Shot Misses</div>
-                  <div className="text-white/60 mt-1">Win 2x</div>
+                  <div className="text-white/60 mt-1">Win 1.5x</div>
                 </button>
               </div>
 
@@ -769,7 +835,7 @@ export default function App() {
                 onClick={placeBet}
                 disabled={!prediction || betAmount > user.balance || betAmount < 10}
                 className={`w-full py-5 rounded-2xl font-bold text-xl transition-all ${
-                  prediction && betAmount <= user.balance && betAmount >= 10
+                  prediction && betAmount <= user.balance && betAmount >= 5
                     ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white hover:shadow-lg hover:shadow-orange-500/50'
                     : 'bg-white/10 text-white/40 cursor-not-allowed'
                 }`}
@@ -827,14 +893,23 @@ export default function App() {
               ← Exit
             </button>
             <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2 hidden sm:block">
+              <div className="flex items-center gap-2 hidden sm:flex">
                 <Users size={18} className="text-blue-400" />
                 <span className="text-white font-semibold">{multiplayerLobby.length} Players</span>
               </div>
-              <div className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
+              <button
+                onClick={() => {
+                  setUserExitedManually(true);
+                  if (multiplayerRestartTimeoutRef.current) {
+                    clearTimeout(multiplayerRestartTimeoutRef.current);
+                  }
+                  setCurrentView('profile');
+                }}
+                className="flex items-center gap-3 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full hover:bg-white/15 transition"
+              >
                 <DollarSign size={18} className="text-green-400" />
                 <span className="text-white font-semibold">${formatBalance(user.balance)}</span>
-              </div>
+              </button>
               <button
                 onClick={() => {
                   setUserExitedManually(true);
@@ -848,7 +923,7 @@ export default function App() {
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center text-white font-bold">
                   {user.name.charAt(0)}
                 </div>
-                <span className="text-white text-sm">{user.name}</span>
+                <span className="text-white text-sm hidden sm:block">{user.name}</span>
               </button>
             </div>
           </div>
@@ -905,7 +980,7 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                <div className="absolute bottom-4 right-4 bg-gradient-to-r from-blue-500 to-purple-500 backdrop-blur-sm px-4 py-2 rounded-full mt-10">
+                <div className="absolute bottom-4 right-4 bg-gradient-to-r from-blue-500 to-purple-500 backdrop-blur-sm px-4 py-2 rounded-full">
                   <div className="text-white font-bold text-lg">Pot: ${formatBalance(totalPot)}</div>
                 </div>
               </div>
@@ -920,18 +995,24 @@ export default function App() {
                       type="number"
                       min="10"
                       max="10000"
-                      value={betAmount}
+                      value={betAmount || ''}
                       onChange={(e) => {
-                        const value = Number(e.target.value);
+                        const value = e.target.value === '' ? 0 : Number(e.target.value);
                         if (value <= user.balance && value <= 10000) {
                           setBetAmount(value);
+                        }
+                      }}
+                      onFocus={(e) => {
+                        if (e.target.value === '0') {
+                          setBetAmount(0);
+                          e.target.value = '';
                         }
                       }}
                       className="w-full bg-white/5 border border-white/20 rounded-xl px-4 py-3 text-white text-xl font-bold text-center focus:outline-none focus:border-blue-400"
                       placeholder="Enter amount"
                     />
                     <div className="flex justify-between mt-2">
-                      <span className="text-white/60 text-sm">Min: $10</span>
+                      <span className="text-white/60 text-sm">Min: $5</span>
                       <span className="text-white/60 text-sm">Max: ${Math.min(10000, user.balance)}</span>
                     </div>
                     {betAmount > user.balance && (
@@ -950,9 +1031,9 @@ export default function App() {
                     >
                       <div className="text-3xl mb-2">🏀</div>
                       <div className="text-lg font-bold text-white">Goes In</div>
-                      {prediction === 'MADE' && (
+                      {prediction === 'MADE' && betAmount >= 5 && (
                         <div className="text-green-400 text-sm mt-2">
-                          Win: ${formatBalance(calculatePotentialWin(betAmount, 'MADE') - betAmount)}
+                          Win: ${formatBalance(calculatePotentialWin(betAmount, 'MADE', true) - betAmount)}
                         </div>
                       )}
                     </button>
@@ -967,9 +1048,9 @@ export default function App() {
                     >
                       <div className="text-3xl mb-2">❌</div>
                       <div className="text-lg font-bold text-white">Misses</div>
-                      {prediction === 'MISSED' && (
+                      {prediction === 'MISSED' && betAmount >= 5 && (
                         <div className="text-red-400 text-sm mt-2">
-                          Win: ${formatBalance(calculatePotentialWin(betAmount, 'MISSED') - betAmount)}
+                          Win: ${formatBalance(calculatePotentialWin(betAmount, 'MISSED', true) - betAmount)}
                         </div>
                       )}
                     </button>
@@ -979,7 +1060,7 @@ export default function App() {
                     onClick={placeBet}
                     disabled={!prediction || betAmount > user.balance || betAmount < 10}
                     className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${
-                      prediction && betAmount <= user.balance && betAmount >= 10
+                      prediction && betAmount <= user.balance && betAmount >= 5
                         ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:shadow-lg'
                         : 'bg-white/10 text-white/40 cursor-not-allowed'
                     }`}
