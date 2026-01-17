@@ -391,7 +391,7 @@ export default function App() {
 
   const NavBar: React.FC<NavBarProps> = ({ showExit = false }) => (
     <nav className="bg-black/30 backdrop-blur-md border-b border-white/10">
-      <div className="max-w-7xl mx-auto px-6 py-4">
+      <div className="max-w-7xl mx-auto px-6 py-4 ">
         <div className="flex items-center justify-between">
           {showExit ? (
             <button 
@@ -405,7 +405,7 @@ export default function App() {
               <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-pink-500 rounded-full flex items-center justify-center">
                 <Trophy className="text-white" size={20} />
               </div>
-              <span className="text-2xl font-bold text-white">HoopShot</span>
+              <span className="text-2xl font-bold text-white hidden sm:block">HoopShot</span>
             </div>
           )}
           <div className="flex items-center gap-6">
@@ -439,8 +439,8 @@ export default function App() {
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
         <NavBar showExit={true} />
 
-        <div className="max-w-4xl mx-auto px-6 py-12">
-          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8 mb-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
+          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-4 sm:p-6 lg:p-8 mb-8">
             <div className="flex items-center gap-6 mb-8">
               <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center text-4xl text-white font-bold">
                 {user.name.charAt(0)}
@@ -497,7 +497,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8">
+          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-4 sm:p-6 lg:p-8">
             <h3 className="text-2xl font-bold text-white mb-6">Game History</h3>
             
             {gameHistory.length === 0 ? (
@@ -547,9 +547,9 @@ export default function App() {
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
         <NavBar />
 
-        <div className="max-w-7xl mx-auto px-6 py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16 lg:py-20">
           <div className="text-center mb-16">
-            <h1 className="text-7xl font-bold text-white mb-6">
+            <h1 className="text-6xl font-bold text-white mb-6 text-6xl sm:text-7xl">
               Will It Go In? 🏀
             </h1>
             <p className="text-2xl text-white/70 mb-4">
@@ -633,7 +633,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-6 max-w-4xl mx-auto mt-16">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 max-w-4xl mx-auto mt-8 sm:mt-16">
             <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-center">
               <div className="text-4xl font-bold text-white mb-2">98%</div>
               <div className="text-white/60">Uptime</div>
@@ -657,9 +657,9 @@ export default function App() {
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
         <NavBar showExit={true} />
 
-        <div className="max-w-4xl mx-auto px-6 py-12">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
           <div className="relative bg-black rounded-3xl overflow-hidden mb-8 shadow-2xl">
-            <div className="aspect-video bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
+            <div className="aspect-video bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center p-4">
               {gameState.status === 'completed' ? (
                 <div className="text-center">
                   <div className={`w-32 h-32 rounded-full mx-auto mb-6 flex items-center justify-center ${
@@ -707,7 +707,7 @@ export default function App() {
           </div>
 
           {!gameState.betPlaced && gameState.status === 'betting' && (
-            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8">
+            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-4 sm:p-6 lg:p-8">
               <h2 className="text-3xl font-bold text-white mb-6 text-center">
                 Make Your Prediction
               </h2>
@@ -780,7 +780,7 @@ export default function App() {
           )}
 
           {gameState.betPlaced && gameState.status === 'betting' && (
-            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-8">
+            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-4 sm:p-6 lg:p-8">
               <div className="text-center mb-6">
                 <div className="text-white/80 text-lg mb-4">Your bet is placed!</div>
                 <div className="text-white text-3xl font-bold mb-2">
@@ -827,7 +827,7 @@ export default function App() {
               ← Exit
             </button>
             <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 hidden sm:block">
                 <Users size={18} className="text-blue-400" />
                 <span className="text-white font-semibold">{multiplayerLobby.length} Players</span>
               </div>
@@ -858,7 +858,7 @@ export default function App() {
           <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
               <div className="relative bg-black rounded-3xl overflow-hidden mb-8 shadow-2xl">
-                <div className="aspect-video bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center">
+                <div className="aspect-video bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center p-4">
                   {gameState.status === 'completed' ? (
                     <div className="text-center">
                       <div className={`w-32 h-32 rounded-full mx-auto mb-6 flex items-center justify-center ${
@@ -905,13 +905,13 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                <div className="absolute bottom-4 right-4 bg-gradient-to-r from-blue-500 to-purple-500 backdrop-blur-sm px-4 py-2 rounded-full">
+                <div className="absolute bottom-4 right-4 bg-gradient-to-r from-blue-500 to-purple-500 backdrop-blur-sm px-4 py-2 rounded-full mt-10">
                   <div className="text-white font-bold text-lg">Pot: ${formatBalance(totalPot)}</div>
                 </div>
               </div>
 
               {!gameState.betPlaced && gameState.status === 'betting' && (
-                <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-6">
+                <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-4 sm:p-4 lg:p-6">
                   <h3 className="text-2xl font-bold text-white mb-4">Place Your Bet</h3>
                   
                   <div className="mb-4">
@@ -990,7 +990,7 @@ export default function App() {
               )}
 
               {gameState.betPlaced && gameState.status === 'betting' && (
-                <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-6">
+                <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-4 sm:p-4 lg:p-6">
                   <div className="text-center mb-4">
                     <div className="text-green-400 text-lg mb-2">✓ Bet Placed!</div>
                     <div className="text-white text-2xl font-bold mb-2">
@@ -1010,7 +1010,7 @@ export default function App() {
               )}
             </div>
 
-            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-6">
+            <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-3xl p-4 sm:p-4 lg:p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-bold text-white">Players</h3>
                 <div className="bg-blue-500/20 px-3 py-1 rounded-full">
