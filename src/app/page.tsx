@@ -60,7 +60,7 @@ export default function App() {
   ];
 
   const [currentView, setCurrentView] = useState<string>('home');
-  const [user, setUser] = useState<User>({ name: 'Demo Player', email: 'demo@hoopshot.com', balance: 10000 });
+  const [user, setUser] = useState<User>({ name: 'Demo Player', email: 'demo@hoopshot.com', balance: 5000 });
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [betAmount, setBetAmount] = useState<number>(50);
   const [prediction, setPrediction] = useState<Outcome | null>(null);
@@ -123,7 +123,7 @@ export default function App() {
         } else if (roll < 0.95) {
           amount = Math.floor(Math.random() * 350) + 150; // 150-500
         } else {
-          amount = Math.floor(Math.random() * 500) + 500; // 500-1000
+          amount = Math.floor(Math.random() * 500) + 3500; // 500-1000
         }
         
         initialBots.push({
